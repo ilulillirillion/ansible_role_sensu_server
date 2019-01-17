@@ -1,0 +1,150 @@
+---
+# file: .../ansible/roles/sensu_client/tasks/main.yaml
+
+
+### Install EPEL Repo
+- name: Install EPEL repo
+  yum:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    state: installed
+  become: true
+
+
+### Deploy Sensu repository file
+- name: Deploy Sensu repository file
+  copy:
+    src: ../files/sensu_repository
+    dest: /etc/yum.repos.d/sensu.repo
+  become: true  
+
+
+### Install redis
+- name: Install redis
+  package:
+    name: redis
+    state: installed
+  become: true
+
+
+### Disable redis protected mode
+- name: Disable redis protected mode
+  lineinfile:
+    path: /etc/redis.conf
+    regexp: '^protected-mode\s+yes'
+    line: protected-mode no
+  become: true
+
+
+### Start and enabled redis
+- name: Start and enable redis
+  service:
+    name: redis
+    state: started
+    enabled: yes
+  become: true
+
+
+### Install Erlang and RabbitMQ
+- name: Install Erlang and RabbitMQ
+  package:
+    name: 
+      - https://dl.bintray.com/rabbitmq/rpm/erlang/20/el/7/x86_64/erlang-20.1.7.1-1.el7.centos.x86_64.rpm
+      - https://dl.bintray.com/rabbitmq/rabbitmq-server-rpm/rabbitmq-server-3.6.12-1.el7.noarch.rpm
+    state: installed
+  become: true
+
+
+### Configure RabbitMQ to work with Sensu
+- name: Deploy RabbitMQ configuration template
+  template:
+    src: ../templates/rabbitmq.json
+    dest: /etc/sensu/conf.d/rabbitmq.json
+    user: sensu
+    owner: sensu
+  become: true
+
+
+### Start and enable RabbitMQ service
+- name: Start and enable the RabbitMQ service
+  service:
+    name: rabbitmq-server
+    state: installed
+  become: true
+
+
+### Create RabbitMQ vhost user
+- name: Create RabbitMQ vhost user
+  command: rabbitmqctl add_vhost /sensu
+  become: true
+
+
+### Create RabbitMQ user
+- name: Create RabbitMQ user
+  command: "rabbitmqctl add_user {{ __rabbitmq_sensu_user | default(__rabbitmq_user) | default('sensu') }}"
+  become: true
+
+
+### Allow Sensu services to connect to RabbitMQ
+- name: Allow Sensu services to connect to RabbitMQ
+  command: rabbitmqctl set_permissions -p /sensu sensu ".*" ".*" ".*"
+  become: true
+
+
+### Install Sensu and Uchiwa dashboard
+- name: Install Sensu and Uchiwa dashboard
+  package:
+    name:
+      - sensu
+      - uchiwa
+  become: true
+
+
+### Configure Sensu client
+- name: Deploy Sensu client configuration template
+  template:
+    src: ../templates/sensu_client.json
+    dest: /etc/sensu/conf.d/client.json
+    owner: sensu
+    group: sensu 
+  become: true
+
+
+### Configure Uchiwa dashboard
+- name: Deploy Uchiwa client configuration template
+  template:
+    src: ../templates/uchiwa.json
+    dest: /etc/sensu/uchiwa.json
+    owner: sensu
+    group: sensu
+  become: true
+
+
+### Set ownership of Sensu configuration files
+- name: Set permissions on Sensu configuration directory
+  file:
+    state: touch
+    owner: sensu
+    group: sensu
+    recurse: yes
+  become: true
+
+
+### Start and enable Sensu services
+- name: Start and enable Sensu services
+  service:
+    name:
+      - sensu-server
+      - sensu-api
+      - sensu-client
+    state: started
+    enabled: yes
+  become: true
+
+
+### Start and enable Uchiwa service
+- name: Start and enable Uchiwa service
+  service:
+    name: uchiwa
+    state: started
+    enabled: yes
+  become: true

@@ -1,0 +1,8 @@
+{
+  "client": {
+    "environment": "development",
+    "subscriptions": [
+      "dev"
+    ]
+  }
+}
